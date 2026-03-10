@@ -1,0 +1,103 @@
+#include <Mouse.h>
+
+// EMG Input Pin
+const int bicepPin = A1;
+
+// Calibration variables
+const unsigned long sampleInterval = 10;
+const unsigned long calibrationTime = 3000;
+const int nSamples = calibrationTime / sampleInterval;
+
+float restingAverage = 0;
+float maxDuringCalibration = 0;
+float contractionThreshold = 0;
+const float thresholdFactor = 1.4;
+
+unsigned long lastSampleTime = 0;
+unsigned long sum = 0;
+int sampleCount = 0;
+bool calibrationDone = false;
+bool calibrationWait = false;
+
+// Contraction detection
+int currentValue = 0;
+bool contractionDetected = false;
+unsigned long lastContractionTime = 0;
+const unsigned long cooldownPeriod = 300;
+
+void setup() {
+  pinMode(bicepPin, INPUT);
+  Serial.begin(9600);
+  while (!Serial) { }
+  pinMode(13, OUTPUT);
+  
+  Mouse.begin();
+}
+
+void loop() {
+  unsigned long now = millis();
+  
+  // ===== CALIBRATION PHASE =====
+  if (!calibrationDone) {
+    if (now - lastSampleTime >= sampleInterval && sampleCount < nSamples) {
+      lastSampleTime = now;
+      currentValue = analogRead(bicepPin);
+      
+      Serial.println(currentValue);
+      
+      sum += currentValue;
+      if (currentValue > maxDuringCalibration) {
+        maxDuringCalibration = currentValue;
+      }
+      sampleCount++;
+    }
+    
+    if (sampleCount == nSamples) {
+      restingAverage = (float)sum / nSamples;
+      float signalRange = maxDuringCalibration - restingAverage;
+      contractionThreshold = restingAverage + (signalRange * thresholdFactor);
+      
+      Serial.print("Average: ");
+      Serial.println(restingAverage);
+      Serial.print("Max: ");
+      Serial.println(maxDuringCalibration);
+      
+      calibrationDone = true;
+      delay(1500);
+    }
+  }
+  
+  // ===== ACTIVE CONTROL PHASE =====
+  else {
+    if(calibrationDone && !calibrationWait) {
+      delay(1500);
+      calibrationWait = true;
+    }
+    
+    currentValue = analogRead(bicepPin);
+    
+    // Print current signal value
+    Serial.println(currentValue);
+    
+    bool isContracting = currentValue > contractionThreshold;
+    
+    // Detect rising edge: only click when transitioning from relaxed to contracted
+    if (isContracting && !contractionDetected) {
+      Mouse.click(MOUSE_LEFT);
+      contractionDetected = true;
+      lastContractionTime = now;
+      digitalWrite(13, HIGH);
+    }
+    
+    // Detect falling edge: reset when signal drops below threshold
+    if (!isContracting && contractionDetected) {
+      // Only allow reset after cooldown period has passed
+      if (now - lastContractionTime >= cooldownPeriod) {
+        contractionDetected = false;
+        digitalWrite(13, LOW);
+      }
+    }
+    
+    delay(10);
+  }
+}
