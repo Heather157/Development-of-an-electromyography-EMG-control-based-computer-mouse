@@ -1,0 +1,91 @@
+#include <Mouse.h>
+
+// EMG Input Pins
+const int rightPin = A2;
+const int leftPin  = A1;
+const int upPin    = A4;
+const int downPin  = A3;
+const int clickPin = A5;
+
+// Contraction detection
+int  right_currentValue = 0;
+int  left_currentValue = 0;
+int  up_currentValue = 0;
+int  down_currentValue = 0;
+int  click_currentValue = 0;
+
+float right_Threshold = (0.3/5)*1023;
+float left_Threshold = (0.25/5)*1023;
+float up_Threshold = (0.3/5)*1023;
+float down_Threshold = (0.2/5)*1023;
+float click_Threshold = (0.7/5)*1023;
+
+
+void setup() {
+  pinMode(rightPin, INPUT);
+  pinMode(leftPin,  INPUT);
+  pinMode(upPin,    INPUT);
+  pinMode(downPin,  INPUT);
+  pinMode(clickPin, INPUT);
+  pinMode(13, OUTPUT);
+
+  Serial.begin(9600);
+  while (!Serial) { }
+
+  Mouse.begin();
+}
+
+void loop() {
+  unsigned long now = millis();
+
+  // ===== ACTIVE CONTROL PHASE =====
+  while(1) {
+    left_currentValue  = analogRead(leftPin);
+    right_currentValue = analogRead(rightPin);
+    up_currentValue    = analogRead(upPin);
+    down_currentValue  = analogRead(downPin);
+    click_currentValue = analogRead(clickPin);
+
+    // Print current signal values (comma-separated)
+    Serial.print(left_currentValue);
+    Serial.print(',');
+    Serial.print(right_currentValue);
+    Serial.print(',');
+    Serial.print(up_currentValue);
+    Serial.print(',');
+    Serial.print(down_currentValue);
+    Serial.print(',');
+    Serial.println(click_currentValue);
+
+    // RIGHT
+    if (right_currentValue > right_Threshold) {
+      Mouse.move(20, 0, 0);
+      digitalWrite(13, HIGH);
+    }
+
+    // LEFT
+    if (left_currentValue > left_Threshold) {
+      Mouse.move(-20,0, 0);
+      digitalWrite(13, HIGH);
+    }
+
+    // UP
+    if (up_currentValue > up_Threshold) {
+      Mouse.move(0, 20, 0);
+      digitalWrite(13, HIGH);
+    }
+
+    // DOWN
+    if (down_currentValue > down_Threshold) {
+      Mouse.move(0, -20, 0);
+      digitalWrite(13, HIGH);
+    }
+
+    // CLICK
+    if (click_currentValue > click_Threshold) {
+      Mouse.click(MOUSE_LEFT);
+      digitalWrite(13, HIGH);
+    }
+    delay(10);
+  }
+}
